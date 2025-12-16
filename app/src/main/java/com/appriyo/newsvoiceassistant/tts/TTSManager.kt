@@ -4,8 +4,6 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 class TTSManager(context: Context, private val onUtteranceCompleted: (() -> Unit)? = null) :
     TextToSpeech.OnInitListener {

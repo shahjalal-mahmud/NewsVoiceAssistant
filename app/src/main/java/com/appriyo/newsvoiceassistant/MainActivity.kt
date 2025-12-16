@@ -20,42 +20,91 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             NewsVoiceAssistantTheme {
-                var granted by remember { mutableStateOf(false) }
+                var permissionState by remember { mutableStateOf<PermissionState>(PermissionState.CHECKING) }
                 var serviceStarted by remember { mutableStateOf(false) }
 
-                LaunchedEffect(granted) {
-                    if (granted && !serviceStarted) {
-                        startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
-                            action = NewsVoiceService.ACTION_START
-                        })
-                        serviceStarted = true
+                LaunchedEffect(Unit) {
+                    // Check if overlay permission is available on this device
+                    if (!OverlayPermissionHelper.isOverlayPermissionAvailable(this@MainActivity)) {
+                        permissionState = PermissionState.UNAVAILABLE
+                        return@LaunchedEffect
+                    }
+
+                    // Check current permission status
+                    if (OverlayPermissionHelper.hasPermission(this@MainActivity)) {
+                        permissionState = PermissionState.GRANTED
+                    } else {
+                        permissionState = PermissionState.REQUEST
                     }
                 }
 
-                if (!granted) {
-                    PermissionScreen {
-                        granted = true
+                when (permissionState) {
+                    PermissionState.CHECKING -> {
+                        // Show loading or nothing
                     }
-                } else {
-                    DashboardScreen(
-                        onStartService = {
-                            startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
-                                action = NewsVoiceService.ACTION_START
-                            })
-                        },
-                        onStopService = {
-                            stopService(Intent(this@MainActivity, NewsVoiceService::class.java))
-                        },
-                        onShowBubble = {
-                            if (OverlayPermissionHelper.hasPermission(this@MainActivity)) {
-                                // Service will handle bubble automatically
-                            } else {
-                                OverlayPermissionHelper.requestPermission(this@MainActivity)
+                    PermissionState.REQUEST -> {
+                        PermissionScreen(
+                            onGranted = {
+                                permissionState = PermissionState.GRANTED
+                            },
+                            onUnavailable = {
+                                permissionState = PermissionState.UNAVAILABLE
+                            }
+                        )
+                    }
+                    PermissionState.GRANTED -> {
+                        // Start service automatically when permission granted
+                        LaunchedEffect(permissionState) {
+                            if (!serviceStarted) {
+                                startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
+                                    action = NewsVoiceService.ACTION_START
+                                })
+                                serviceStarted = true
                             }
                         }
-                    )
+
+                        DashboardScreen(
+                            onStartService = {
+                                startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
+                                    action = NewsVoiceService.ACTION_START
+                                })
+                            },
+                            onStopService = {
+                                stopService(Intent(this@MainActivity, NewsVoiceService::class.java))
+                            }
+                        )
+                    }
+                    PermissionState.UNAVAILABLE -> {
+                        // Fallback mode - notification only
+                        LaunchedEffect(permissionState) {
+                            if (!serviceStarted) {
+                                startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
+                                    action = NewsVoiceService.ACTION_START
+                                })
+                                serviceStarted = true
+                            }
+                        }
+
+                        DashboardScreen(
+                            onStartService = {
+                                startService(Intent(this@MainActivity, NewsVoiceService::class.java).apply {
+                                    action = NewsVoiceService.ACTION_START
+                                })
+                            },
+                            onStopService = {
+                                stopService(Intent(this@MainActivity, NewsVoiceService::class.java))
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+sealed class PermissionState {
+    object CHECKING : PermissionState()
+    object REQUEST : PermissionState()
+    object GRANTED : PermissionState()
+    object UNAVAILABLE : PermissionState()
 }
